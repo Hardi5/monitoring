@@ -71,11 +71,27 @@
         state: started
         enabled: true
 
-- name: Configure Zabbix Server to monitor Agent 2
+- name: Configure Zabbix Server and Agent 2 monitoring
   hosts: zabbix_server
   become: true
 
   tasks:
+    - name: Import Zabbix template for Zabbix server monitoring
+      shell:
+        cmd: "zabbix_import --username Admin --password '********' --import '/usr/share/doc/zabbix-server-mysql*/create.sql'"
+        creates: "/etc/zabbix/template_imported"
+
+    - name: Create Zabbix host for Agent 2
+      shell:
+        cmd: "zabbix_create_host --username Admin --password zabbix --host 'Agent 2' --ip '37.27.0.242'"
+        creates: "/etc/zabbix/host_created"
+
+    - name: Configure Zabbix server to monitor itself
+      shell:
+        cmd: "zabbix_configure_monitoring --username Admin --password zabbix --host 'Zabbix Server' --ip '127.0.0.1'"
+        creates: "/etc/zabbix/monitoring_configured"
+
     - name: Configure Zabbix server to monitor Agent 2
       shell:
-        cmd: "zabbix_server -p | grep 'Starting Zabbix' && zabbix_proxy -c /etc/zabbix/zabbix_proxy.conf"
+        cmd: "zabbix_configure_monitoring --username Admin --password zabbix --host 'Agent 2' --ip '37.27.0.242'"
+        creates: "/etc/zabbix/monitoring_configured_agent2"
