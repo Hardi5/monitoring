@@ -1,0 +1,4 @@
+- name: Import Zabbix database schema and data
+      command: zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql --default-character-set=utf8mb4 -uzabbix -p zabbix
+
+den hade redan gjort det men visste inte hur man gjorde med if not exist 
