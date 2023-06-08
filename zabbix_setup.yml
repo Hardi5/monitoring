@@ -1,0 +1,81 @@
+- name: Install and configure Zabbix server and agent
+  hosts: zabbix_server
+  become: true
+
+  tasks:
+    - name: Install Zabbix repository
+      shell:
+        cmd: "wget https://repo.zabbix.com/zabbix/6.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.0-4+ubuntu22.04_all.deb && dpkg -i zabbix-release_6.0-4+ubuntu22.04_all.deb"
+        creates: "/etc/apt/sources.list.d/zabbix.list"
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Zabbix server, frontend, agent
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - zabbix-server-mysql
+        - zabbix-frontend-php
+        - zabbix-apache-conf
+        - zabbix-sql-scripts
+        - zabbix-agent
+
+    - name: Create initial database
+      become: true
+      become_user: root
+      command: mysql -u root -p'password' -e "create database if not exists zabbix character set utf8mb4 collate utf8mb4_bin; create user if not exists zabbix@localhost identified by 'password'; grant all privileges on zabbix.* to zabbix@localhost; set global log_bin_trust_function_creators = 1;"
+
+    - name: Configure Zabbix server database
+      lineinfile:
+        path: /etc/zabbix/zabbix_server.conf
+        regexp: '^DBPassword='
+        line: "DBPassword=password"
+        backup: yes 
+
+    - name: Copy sshd_config.j2 file
+      template:
+        src: sshd_config.j2
+        dest: /etc/ssh/sshd_config
+        owner: root
+        group: root
+        mode: '0644'
+
+- name: Install and configure Zabbix Agent 2
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Install Zabbix repository
+      shell:
+        cmd: "wget https://repo.zabbix.com/zabbix/6.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.0-4+ubuntu22.04_all.deb && dpkg -i zabbix-release_6.0-4+ubuntu22.04_all.deb"
+        creates: "/etc/apt/sources.list.d/zabbix.list"
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Zabbix agent2
+      apt:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - zabbix-agent2
+        - zabbix-agent2-plugin-*
+
+    - name: Start Zabbix agent2 process
+      service:
+        name: zabbix-agent2
+        state: started
+        enabled: true
+
+- name: Configure Zabbix Server to monitor Agent 2
+  hosts: zabbix_server
+  become: true
+
+  tasks:
+    - name: Configure Zabbix server to monitor Agent 2
+      shell:
+        cmd: "zabbix_server -p | grep 'Starting Zabbix' && zabbix_proxy -c /etc/zabbix/zabbix_proxy.conf"
